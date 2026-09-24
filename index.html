@@ -298,7 +298,17 @@
     .acc-row .ico{width:28px;text-align:center;font-size:16px}
     .acc-row.danger{color:var(--danger)}
 
-  </style>
+  
+    .btn-bulk-main{
+      display:block;width:100%;margin:8px 0 6px;padding:14px 16px;border:0;border-radius:14px;
+      background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:15px;font-weight:800;
+      letter-spacing:.04em;box-shadow:0 6px 16px rgba(217,119,6,.35);cursor:pointer;
+    }
+    .btn-bulk-main:active{transform:scale(.98)}
+    .bulk-hint{margin:0 0 12px;font-size:12px;color:#64748b;text-align:center}
+    .bulk-bar-on{background:#ecfdf3;border:1px solid #a6f4c5;border-radius:12px;padding:10px;display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+    .bulk-bar-on .btn{width:auto;padding:8px 12px;font-size:13px}
+</style>
 </head>
 <body>
   <div id="auth-screen">
@@ -845,16 +855,18 @@
     var list=(data.urunler||[]).slice().reverse();
     if(q)list=list.filter(function(u){return [u.ad,u.kod,u.barkod,u.marka].join(' ').toLowerCase().indexOf(q)>=0});
     var html='<div class="search-bar"><input placeholder="ürün/hizmet arama" value="'+escAttr(searchQ.urunler)+'" oninput="searchQ.urunler=this.value;goPage(\'urunler\')"><button type="button" class="scan-btn" onclick="scanUrunAra()" title="Barkod okut">'+(YM_ICONS.barcode||'')+'</button></div>';
-    html+='<div class="bulk-bar">';
     if(!bulkMode){
-      html+='<button type="button" class="btn btn-ghost" onclick="toggleBulkMode(true)">Toplu düzelt</button>';
+      html+='<button type="button" class="btn-bulk-main" onclick="toggleBulkMode(true)">TOPLU DÜZELT</button>';
+      html+='<p class="bulk-hint">Ürün seçip fiyatları toplu değiştirmek için bu tuşa basın</p>';
     } else {
       var n=Object.keys(bulkSelected).filter(function(k){return bulkSelected[k];}).length;
+      html+='<div class="bulk-bar bulk-bar-on">';
       html+='<button type="button" class="btn btn-ghost" onclick="toggleBulkMode(false)">İptal</button>';
       html+='<button type="button" class="btn btn-ghost" onclick="bulkSelectAll()">Tümünü seç</button>';
       html+='<button type="button" class="btn btn-primary" onclick="openBulkFiyat()" '+(n?'' : 'disabled style="opacity:.5"')+'>Fiyat değiştir ('+n+')</button>';
+      html+='</div>';
+      html+='<p class="bulk-hint">Ürünlere dokunarak seçin, sonra «Fiyat değiştir»</p>';
     }
-    html+='</div>';
     if(!list.length)return html+'<div class="empty">Ürün yok. + ile ekleyin.</div>';
     list.forEach(function(u){
       var thumb = u.resim
@@ -895,20 +907,14 @@
   function openBulkFiyat(){
     var ids=Object.keys(bulkSelected).filter(function(k){return bulkSelected[k];}).map(Number);
     if(!ids.length) return toast('Ürün seçin');
-    openSheet('Toplu fiyat düzelt ('+ids.length+' ürün)',
-      '<p style="font-size:13px;color:#64748b;margin:0 0 10px">Seçili ürünlerin satış fiyatını güncelleyin.</p>'+
-      '<div class="form-group"><label>İşlem</label>'+
-      '<select id="bulk-mode" class="form-control" onchange="onBulkModeChange()">'+
-      '<option value="set">Yeni fiyat yaz</option>'+
-      '<option value="pct">Yüzde artır / azalt</option>'+
-      '<option value="add">Sabit tutar ekle / çıkar</option>'+
-      '</select></div>'+
-      '<div class="form-group" id="bulk-set-wrap"><label>Yeni satış fiyatı</label><input id="bulk-fiyat" type="number" step="0.01" placeholder="0.00"></div>'+
-      '<div class="form-group" id="bulk-pct-wrap" style="display:none"><label>Yüzde (%)</label><input id="bulk-pct" type="number" step="0.1" placeholder="örn. 10 veya -5"></div>'+
-      '<div class="form-group" id="bulk-add-wrap" style="display:none"><label>Eklenecek tutar</label><input id="bulk-add" type="number" step="0.01" placeholder="örn. 50 veya -20"></div>'+
+    openSheet('Toplu fiyat değiştir ('+ids.length+' ürün)',
+      '<p style="font-size:13px;color:#64748b;margin:0 0 10px">Seçili ürünlerin satış ve/veya alış fiyatını yazın. Boş bırakılan alan değişmez.</p>'+
+      '<div class="form-group"><label>Satış fiyatı</label><input id="bulk-fiyat" type="number" step="0.01" min="0" placeholder="Boş = değişmesin"></div>'+
+      '<div class="form-group"><label>Alış fiyatı</label><input id="bulk-alis" type="number" step="0.01" min="0" placeholder="Boş = değişmesin"></div>'+
+      '<div class="form-group"><label>veya satışa yüzde (%)</label><input id="bulk-pct" type="number" step="0.1" placeholder="10 veya -5"></div>'+
       '<input type="hidden" id="bulk-ids" value="'+ids.join(',')+'">',
       '<button type="button" class="btn btn-ghost" onclick="closeSheet()">İptal</button>'+
-      '<button type="button" class="btn btn-primary" onclick="applyBulkFiyat()">Uygula</button>'
+      '<button type="button" class="btn btn-primary" onclick="applyBulkFiyat()">Fiyatı Uygula</button>'
     );
   }
   function onBulkModeChange(){
@@ -926,34 +932,34 @@
       var idsStr=((document.getElementById('bulk-ids')||{}).value||'');
       var ids=idsStr.split(',').map(function(x){return parseInt(x,10);}).filter(function(x){return !isNaN(x);});
       if(!ids.length) return toast('Ürün seçilmedi');
-      var mode=((document.getElementById('bulk-mode')||{}).value)||'set';
+      var satisRaw=((document.getElementById('bulk-fiyat')||{}).value);
+      var alisRaw=((document.getElementById('bulk-alis')||{}).value);
+      var pctRaw=((document.getElementById('bulk-pct')||{}).value);
+      var hasS=satisRaw!==''&&satisRaw!=null;
+      var hasA=alisRaw!==''&&alisRaw!=null;
+      var hasP=pctRaw!==''&&pctRaw!=null;
+      if(!hasS&&!hasA&&!hasP) return toast('Satış, alış veya yüzde girin');
+      var satis=hasS?parseFloat(satisRaw):null;
+      var alis=hasA?parseFloat(alisRaw):null;
+      var pct=hasP?parseFloat(pctRaw):null;
+      if(hasS&&(isNaN(satis)||satis<0)) return toast('Geçerli satış fiyatı');
+      if(hasA&&(isNaN(alis)||alis<0)) return toast('Geçerli alış fiyatı');
+      if(hasP&&isNaN(pct)) return toast('Geçerli yüzde');
       var n=0;
       ids.forEach(function(id){
         var u=(data.urunler||[]).find(function(x){return x.id===id;});
         if(!u) return;
-        var old=Number(u.fiyat)||0;
-        var neu=old;
-        if(mode==='set'){
-          var v=parseFloat((document.getElementById('bulk-fiyat')||{}).value);
-          if(isNaN(v) || v<0) return;
-          neu=v;
-        } else if(mode==='pct'){
-          var p=parseFloat((document.getElementById('bulk-pct')||{}).value);
-          if(isNaN(p)) return;
-          neu=Math.round(old*(1+p/100)*100)/100;
-          if(neu<0) neu=0;
-        } else if(mode==='add'){
-          var a=parseFloat((document.getElementById('bulk-add')||{}).value);
-          if(isNaN(a)) return;
-          neu=Math.round((old+a)*100)/100;
-          if(neu<0) neu=0;
+        if(hasS) u.fiyat=satis;
+        else if(hasP){
+          var old=Number(u.fiyat)||0;
+          u.fiyat=Math.round(old*(1+pct/100)*100)/100;
+          if(u.fiyat<0) u.fiyat=0;
         }
-        u.fiyat=neu;
+        if(hasA) u.alisFiyat=alis;
         n++;
       });
-      if(!n) return toast('Geçerli değer girin');
       saveLocal();
-      closeSheet(); toggleBulkMode(false);
+      closeSheet();
       bulkMode=false;
       bulkSelected={};
       goPage('urunler');
